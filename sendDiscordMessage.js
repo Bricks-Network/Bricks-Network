@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { execSync } from 'child_process';
+import FormData from 'form-data';
 
 // Function to capture console output
 function captureConsoleOutput(command) {
@@ -34,45 +35,28 @@ Deploy Result:
 ${deployResult.output}
 `;
 
-// Function to split the message into chunks
-function splitMessage(content) {
-  const MAX_LENGTH = 2000;
-  const messages = [];
-  while (content.length > 0) {
-    messages.push(content.substring(0, MAX_LENGTH));
-    content = content.substring(MAX_LENGTH);
-  }
-  return messages;
-}
+// Create form data and append the message as a file
+const formData = new FormData();
+formData.append('file', Buffer.from(message), { filename: 'output.txt' });
 
-// Check if the message exceeds the Discord character limit
-const messages = splitMessage(message);
-
-// Send each message to Discord with rate-limiting
-async function sendMessage(messagesArray) {
-  for (const msg of messagesArray) {
-    try {
-      const response = await axios.post(
-        webhookURL,
-        { content: msg },
-        { headers: { 'Content-Type': 'application/json' } }
-      );
-
-      console.log('Message sent to Discord', response.data);
-    } catch (error) {
-      console.error('Error sending message to Discord:', error.response ? error.response.data : error.message);
-
-      // Check for rate-limiting error (status code 429)
-      if (error.response && error.response.status === 429) {
-        // Retry after the specified retry-after duration
-        const retryAfter = error.response.headers['retry-after'] || 5; // Default to 5 seconds
-        console.log(`Rate limited. Retrying after ${retryAfter} seconds...`);
-        await delay(retryAfter * 1000);
-        await sendMessage([msg]); // Retry the message sending for the current chunk
+// Send the file to Discord with rate-limiting
+async function sendFile() {
+  try {
+    const response = await axios.post(
+      webhookURL,
+      formData,
+      {
+        headers: {
+          ...formData.getHeaders(),
+        },
       }
-    }
+    );
+
+    console.log('File sent to Discord', response.data);
+  } catch (error) {
+    console.error('Error sending file to Discord:', error.response ? error.response.data : error.message);
   }
 }
 
-// Send messages to Discord with rate-limiting
-sendMessage(messages);
+// Send the file to Discord with rate-limiting
+sendFile();
